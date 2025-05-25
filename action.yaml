@@ -6,6 +6,15 @@ inputs:
     description: 'Name of the uploaded Terraform plan artifact'
     required: true
     default: 'terraform-plan'
+  s3-bucket:
+    description: "S3 bucket for Terraform backend"
+    required: true
+  s3-region:
+    description: "AWS region where the S3 bucket is located"
+    required: true
+  dynamodb-table:
+    description: "DynamoDB table name for state locking"
+    required: true
   terraform-plan-file:
     description: 'Path to the Terraform binary plan file inside the artifact'
     required: true
