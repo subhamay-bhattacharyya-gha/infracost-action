@@ -1,44 +1,54 @@
-name: 'Action Name'
-description: 'Action Description'
+name: 'Infracost Run'
+description: 'Download Terraform plan artifact and run Infracost to generate cost breakdown.'
 
 inputs:
-  input-1:
-    description: Input description.
+  artifact-name:
+    description: 'Name of the uploaded Terraform plan artifact'
+    required: true
+    default: 'terraform-plan'
+  terraform-plan-file:
+    description: 'Path to the Terraform binary plan file inside the artifact'
+    required: true
+    default: 'tfplan.out'
+  working-directory:
+    description: 'Directory where Terraform code is located'
     required: false
-    default: default-value
-  input-2:
-    description: Input description.
-    required: false
-    default: default-value
-  input-3:
-    description: Input description.
-    required: false
-    default: default-value
-  github-token:
-    description: 'GitHub token'
+    default: '.'
+  infracost-api-key:
+    description: 'Infracost API key'
     required: true
 
 runs:
   using: 'composite'
   steps:
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: 3.x
+    - name: Checkout repo
+      uses: actions/checkout@v4
 
-    - name: Sample step to call GitHub API
+    - name: Download Terraform plan artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: plan-artifact
+
+    - name: Setup Infracost
+      uses: infracost/actions/setup@v2
+
+    - name: Convert Terraform plan to JSON
+      run: |
+        cd plan-artifact
+        terraform show -json ${{ inputs.terraform-plan-file }} > plan.json
+        echo "----------- Terraform plan converted to JSON -----------"
+        cat plan.json
+        echo "---------------------------------------------------------"
+      shell: bash
+
+    - name: Run Infracost breakdown
+      run: |
+        infracost breakdown \
+          --path=plan-artifact/plan.json \
+          --format=table \
+          --show-skipped \
+          --log-level=info
       shell: bash
       env:
-        GITHUB_TOKEN: ${{ inputs.github-token }}
-      run: |
-        ISSUE_NUMBER="${{ github.event.issue.number }}"
-        REPO="${{ github.repository }}"
-        OWNER=$(echo $REPO | cut -d'/' -f1)
-        BRANCH_NAME="${{ steps.create-branch.outputs.branch-name }}"
-        COMMENT_BODY="Branch [$BRANCH_NAME](https://github.com/$OWNER/$REPO/tree/$BRANCH_NAME) created 🚀"
-
-        curl -s -X POST \
-          -H "Authorization: token $GITHUB_TOKEN" \
-          -H "Content-Type: application/json" \
-          -d "{\"body\": \"$COMMENT_BODY\"}" \
-          https://api.github.com/repos/$REPO/issues/$ISSUE_NUMBER/comments
+        INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
