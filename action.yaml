@@ -23,13 +23,14 @@ inputs:
     description: 'Directory where Terraform code is located'
     required: false
     default: 'tf'
-  infracost-api-key:
-    description: 'Infracost API key'
-    required: true
   ci-pipeline:
     description: "Whether this is a CI pipeline"
     required: false
     default: "true"
+  secrets:
+    infracost-api-key:
+      description: 'Infracost API key'
+      required: true
 
 outputs:
   monthly-cost:
@@ -83,14 +84,14 @@ runs:
         cp ../plan-artifact/${{ inputs.terraform-plan-file }} tfplan.out
         terraform show -json tfplan.out > plan.json
         echo "----------- Terraform plan converted to JSON -----------"
-        cat plan.json
+        cat plan.json| jq
         echo "---------------------------------------------------------"
 
     - name: Run Infracost (JSON)
       id: infracost-json
       shell: bash
       env:
-        INFRACOST_API_KEY: ${{ inputs.infracost-api-key }}
+        INFRACOST_API_KEY: ${{ secrets.infracost-api-key }}
       working-directory: ${{ github.workspace }}/${{ inputs.terraform-dir }}
       run: |
         infracost breakdown \
