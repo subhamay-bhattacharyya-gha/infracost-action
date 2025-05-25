@@ -1,3 +1,18 @@
+# 1.0.0 (2025-05-25)
+
+
+### Bug Fixes
+
+* add CI pipeline input and update Infracost step to output monthly cost summary ([3f37ac2](https://github.com/subhamay-bhattacharyya-gha/infracost-action/commit/3f37ac2472f573c487598d9e476deeb1bdb642cb))
+* add required inputs for S3 bucket, region, and DynamoDB table in action.yaml ([3461565](https://github.com/subhamay-bhattacharyya-gha/infracost-action/commit/34615657442c7c59de9c89e062255ff6f34faf22))
+* add Terraform setup step before converting plan to JSON ([8203431](https://github.com/subhamay-bhattacharyya-gha/infracost-action/commit/8203431c257bc94919d0d98c6163162301c7fe36))
+* move Infracost API key to secrets and update JSON conversion output ([d08606f](https://github.com/subhamay-bhattacharyya-gha/infracost-action/commit/d08606f37c44540b440124a015fa35f2dfe615f5))
+* rename step to 'Run Infracost' and streamline API key export ([6a8a261](https://github.com/subhamay-bhattacharyya-gha/infracost-action/commit/6a8a261fec7a25c36f54a8b32be86c10dc020eae))
+* reorganize inputs in action.yaml and update Infracost API key handling ([6b3bf2b](https://github.com/subhamay-bhattacharyya-gha/infracost-action/commit/6b3bf2ba6bd395cb292ec6d8b6a472e2ef8aa271))
+* set default max-cost value and update Infracost summary output format ([f4c1f4c](https://github.com/subhamay-bhattacharyya-gha/infracost-action/commit/f4c1f4cfe13e7c80c589f0ccb9c05f75ae264374))
+* update links and names to reflect the infracost-action repository ([1da50f2](https://github.com/subhamay-bhattacharyya-gha/infracost-action/commit/1da50f26be9062886863258fcaf296b94d58689a))
+* update Terraform setup steps and add backend configuration ([525f57f](https://github.com/subhamay-bhattacharyya-gha/infracost-action/commit/525f57f56523aac44375de553d051288df85f719))
+
 ## [1.1.2](https://github.com/subhamay-bhattacharyya-gha/infracost-action/compare/v1.1.1...v1.1.2) (2025-05-21)
 
 
