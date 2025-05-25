@@ -33,6 +33,9 @@ runs:
     - name: Setup Infracost
       uses: infracost/actions/setup@v2
 
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      
     - name: Convert Terraform plan to JSON
       run: |
         cd plan-artifact
