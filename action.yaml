@@ -6,31 +6,42 @@ inputs:
     description: 'Name of the uploaded Terraform plan artifact'
     required: true
     default: 'terraform-plan'
+
   s3-bucket:
     description: "S3 bucket for Terraform backend"
     required: true
+
   s3-region:
     description: "AWS region where the S3 bucket is located"
     required: true
+
   dynamodb-table:
     description: "DynamoDB table name for state locking"
     required: true
+
   terraform-plan-file:
     description: 'Path to the Terraform binary plan file inside the artifact'
     required: true
     default: 'tfplan.out'
+
   terraform-dir:
     description: 'Directory where Terraform code is located'
     required: false
     default: 'tf'
+
   ci-pipeline:
     description: "Whether this is a CI pipeline"
     required: false
     default: "true"
-  secrets:
-    infracost-api-key:
-      description: 'Infracost API key'
-      required: true
+
+  infracost-api-key:
+    description: 'Infracost API key'
+    required: true
+
+  max-cost:
+    description: "Optional cost threshold. Fail if total monthly cost exceeds this amount (e.g., 100.00)"
+    required: false
+    default: ""
 
 outputs:
   monthly-cost:
@@ -67,6 +78,8 @@ runs:
         echo "s3_key=$state_key" >> $GITHUB_OUTPUT
 
     - name: Terraform Init with S3 Backend
+      shell: bash
+      working-directory: ${{ github.workspace }}/${{ inputs.terraform-dir }}
       run: |
         terraform init -input=false \
           -backend-config="bucket=${{ inputs.s3-bucket }}" \
@@ -74,8 +87,6 @@ runs:
           -backend-config="region=${{ inputs.s3-region }}" \
           -backend-config="encrypt=true" \
           -backend-config="dynamodb_table=${{ inputs.dynamodb-table }}"
-      shell: bash
-      working-directory: ${{ github.workspace }}/${{ inputs.terraform-dir }}
 
     - name: Convert Terraform plan to JSON
       shell: bash
@@ -84,15 +95,15 @@ runs:
         cp ../plan-artifact/${{ inputs.terraform-plan-file }} tfplan.out
         terraform show -json tfplan.out > plan.json
         echo "----------- Terraform plan converted to JSON -----------"
-        cat plan.json| jq
+        cat plan.json | jq
         echo "---------------------------------------------------------"
 
     - name: Run Infracost (JSON)
       id: infracost-json
       shell: bash
-      env:
-        INFRACOST_API_KEY: ${{ secrets.infracost-api-key }}
       working-directory: ${{ github.workspace }}/${{ inputs.terraform-dir }}
+      env:
+        INFRACOST_API_KEY: ${{ inputs.infracost-api-key }}
       run: |
         infracost breakdown \
           --path=plan.json \
@@ -100,9 +111,16 @@ runs:
           --log-level=info \
           --out-file=cost-report.json
 
-        echo "Parsing total monthly cost from cost-report.json..."
         monthly_cost=$(jq -r '.summary.totalMonthlyCost // "0"' cost-report.json)
-        echo "monthly-cost=$monthly_cost" >> $GITHUB_OUTPUT
+        printf "monthly-cost=%.2f\n" "$monthly_cost" >> $GITHUB_OUTPUT
+
+        if [[ -n "${{ inputs.max-cost }}" ]]; then
+          max=$(echo "${{ inputs.max-cost }}" | awk '{ printf "%.2f", $1 }')
+          if (( $(echo "$monthly_cost > $max" | bc -l) )); then
+            echo "❌ Monthly cost ($monthly_cost) exceeds max threshold ($max)"
+            exit 1
+          fi
+        fi
 
     - name: Append cost summary to GITHUB_STEP_SUMMARY
       shell: bash
