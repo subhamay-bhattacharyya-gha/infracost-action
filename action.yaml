@@ -42,13 +42,12 @@ runs:
         echo "---------------------------------------------------------"
       shell: bash
 
-    - name: Run Infracost breakdown
+    - name: Run Infracost
+      shell: bash
       run: |
+        export INFRACOST_API_KEY="${{ inputs.infracost-api-key }}"
         infracost breakdown \
           --path=plan-artifact/plan.json \
           --format=table \
           --show-skipped \
           --log-level=info
-      shell: bash
-      env:
-        INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
