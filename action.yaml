@@ -10,10 +10,10 @@ inputs:
     description: 'Path to the Terraform binary plan file inside the artifact'
     required: true
     default: 'tfplan.out'
-  working-directory:
+  terraform-dir:
     description: 'Directory where Terraform code is located'
     required: false
-    default: '.'
+    default: 'tf'
   infracost-api-key:
     description: 'Infracost API key'
     required: true
@@ -36,6 +36,28 @@ runs:
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
       
+    - name: Compute Backend Key from Repository Name
+      id: key
+      run: |
+        if [[ "${{ inputs.ci-pipeline }}" == "true" ]]; then
+          state_key="${{ github.repository }}/${{ github.sha }}/terraform.tfstate"
+        else
+          state_key="${{ github.repository }}/terraform.tfstate"
+        fi
+        echo "s3_key=$state_key" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Terraform Init with S3 Backend
+      run: |
+        terraform init -input=false \
+          -backend-config="bucket=${{ inputs.s3-bucket }}" \
+          -backend-config="key=${{ steps.key.outputs.s3_key }}" \
+          -backend-config="region=${{ inputs.s3-region }}" \
+          -backend-config="encrypt=true" \
+          -backend-config="dynamodb_table=${{ inputs.dynamodb-table }}"
+      shell: bash
+      working-directory: ${{ github.workspace }}/${{ inputs.terraform-dir }}
+
     - name: Convert Terraform plan to JSON
       run: |
         cd plan-artifact
