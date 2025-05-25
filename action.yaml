@@ -41,7 +41,7 @@ inputs:
   max-cost:
     description: "Optional cost threshold. Fail if total monthly cost exceeds this amount (e.g., 100.00)"
     required: false
-    default: ""
+    default: "10.00"
 
 outputs:
   monthly-cost:
@@ -122,12 +122,20 @@ runs:
           fi
         fi
 
-    - name: Append cost summary to GITHUB_STEP_SUMMARY
+    - name: Append Infracost Table Summary
+      id: infracost-table
       shell: bash
       working-directory: ${{ github.workspace }}/${{ inputs.terraform-dir }}
+      env:
+        INFRACOST_API_KEY: ${{ inputs.infracost-api-key }}
       run: |
-        echo "### 💰 Infracost Cost Breakdown" >> $GITHUB_STEP_SUMMARY
+        infracost breakdown \
+          --path=plan.json \
+          --format=table \
+          --log-level=info > cost-table.txt
+
+        echo "### 💰 Infracost Monthly Cost Breakdown (Table)" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo '```json' >> $GITHUB_STEP_SUMMARY
-        cat cost-report.json >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        cat cost-table.txt >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
