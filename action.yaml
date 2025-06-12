@@ -2,12 +2,7 @@ name: 'Infracost Run'
 description: 'Download Terraform plan artifact and run Infracost to generate cost breakdown.'
 
 inputs:
-  artifact-name:
-    description: 'Name of the uploaded Terraform plan artifact'
-    required: true
-    default: 'terraform-plan'
-
-  release_tag:
+  release-tag:
     description: 'Optional release tag to checkout'
     required: false
     type: string
@@ -18,11 +13,6 @@ inputs:
     required: false
     default: "tf"
 
-  tf-vars-file:
-    description: "Optional Terraform variable file"
-    required: false
-    default: "terraform.tfvars"
-
   s3-bucket:
     description: "S3 bucket for Terraform backend"
     required: true
@@ -31,15 +21,25 @@ inputs:
     description: "AWS region where the S3 bucket is located"
     required: true
 
+  tf-plan-file:
+    description: "File to save the Terraform plan output"
+    required: false
+    default: "tfplan"  
+
+  tf-vars-file:
+    description: "Optional Terraform variable file"
+    required: false
+    default: "terraform.tfvars"
+
+  tf-plan-name:
+    description: "Name of the Terraform plan file"
+    required: false
+    default: "terraform-plan"
+
   ci-pipeline:
     description: "Set to true to use commit SHA in backend key"
     required: false
-    default: "false"  # Boolean-like string
-
-  terraform-plan-file:
-    description: 'Path to the Terraform binary plan file inside the artifact'
-    required: true
-    default: 'tfplan.out'
+    default: "false"
 
   infracost-api-key:
     description: 'Infracost API key'
@@ -64,8 +64,8 @@ runs:
     - name: Download Terraform plan artifact
       uses: actions/download-artifact@v4
       with:
-        name: ${{ inputs.artifact-name }}
-        path: plan-artifact
+        name: ${{ inputs.terraform-plan-file }}
+        path: ${{ inputs.tf-plan-name}}
 
     - name: Setup Infracost
       uses: infracost/actions/setup@v2
@@ -99,10 +99,9 @@ runs:
       shell: bash
       working-directory: ${{ github.workspace }}/${{ inputs.terraform-dir }}
       run: |
-        cp ../plan-artifact/${{ inputs.terraform-plan-file }} tfplan.out
-        terraform show -json tfplan.out > plan.json
+        terraform show -json ${{ inputs.tf-plan-file }}.out > ${{ inputs.tf-plan-file }}.json
         echo "----------- Terraform plan converted to JSON -----------"
-        cat plan.json | jq
+        cat ${{ inputs.tf-plan-file }}.json | jq
         echo "---------------------------------------------------------"
 
     - name: Run Infracost (JSON)
@@ -113,7 +112,7 @@ runs:
         INFRACOST_API_KEY: ${{ inputs.infracost-api-key }}
       run: |
         infracost breakdown \
-          --path=plan.json \
+          --path=${{ inputs.tf-plan-file }}.json \
           --format=json \
           --log-level=info \
           --out-file=cost-report.json
@@ -137,7 +136,7 @@ runs:
         INFRACOST_API_KEY: ${{ inputs.infracost-api-key }}
       run: |
         infracost breakdown \
-          --path=plan.json \
+          --path=${{ inputs.tf-plan-file }}.json \
           --format=table \
           --log-level=info > cost-table.txt
 
