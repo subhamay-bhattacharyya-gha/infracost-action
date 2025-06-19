@@ -137,6 +137,8 @@ runs:
 
     - name: Download Gist JSON file to get the Infracost configuration (max cost, etc.)
       id: download-gist
+      shell: bash
+      working-directory: ${{ github.workspace }}/${{ inputs.terraform-dir }}
       run: |
         GIST_ID="${{ inputs.gist-id }}"
         FILENAME="${{ inputs.gist-filename }}"
