@@ -87,7 +87,6 @@ runs:
     - name: Checkout Repo
       uses: actions/checkout@v4
       with:
-        ref: ${{ steps.set-ref.outputs.ref }}
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
