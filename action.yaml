@@ -1,74 +1,100 @@
-name: 'Infracost Run'
-description: 'Download Terraform plan artifact and run Infracost to generate cost breakdown.'
+name: "Infracost Run"
+description: "Downloads a Terraform plan artifact and runs Infracost to generate a cost breakdown."
 
 inputs:
-  artifact-name:
-    description: 'Name of the uploaded Terraform plan artifact'
-    required: true
-    default: 'terraform-plan'
-
-  s3-bucket:
-    description: "S3 bucket for Terraform backend"
-    required: true
-
-  s3-region:
-    description: "AWS region where the S3 bucket is located"
-    required: true
-
-  dynamodb-table:
-    description: "DynamoDB table name for state locking"
-    required: true
-
-  terraform-plan-file:
-    description: 'Path to the Terraform binary plan file inside the artifact'
-    required: true
-    default: 'tfplan.out'
-
   terraform-dir:
-    description: 'Directory where Terraform code is located'
+    description: "Relative path to the directory containing Terraform configuration files (e.g., 'tf', 'infrastructure')."
     required: false
-    default: 'tf'
+    type: string
+    default: "tf"
+
+  release-tag:
+    description: "Git release tag to check out. If omitted, the latest commit on the default branch is used."
+    required: false
+    type: string
+    default: ""
 
   ci-pipeline:
-    description: "Whether this is a CI pipeline"
+    description: "Set to 'true' to include the commit SHA in the Terraform state key (suitable for CI/CD). Use 'false' for static state keys."
     required: false
-    default: "true"
+    type: string
+    default: "false"
+
+  s3-bucket:
+    description: "Name of the S3 bucket used as the backend for storing the Terraform state file."
+    required: true
+    type: string
+
+  s3-region:
+    description: "AWS region where the S3 backend bucket is located (e.g., us-east-1, eu-west-1)."
+    required: true
+    type: string
+
+  tf-plan-name:
+    description: "Name of the Terraform plan artifact."
+    required: false
+    default: "terraform-plan"
+
+  tf-plan-file:
+    description: "Base filename (without extension) for the Terraform plan output."
+    required: false
+    default: "tfplan"
+
+  tf-vars-file:
+    description: "Optional Terraform variable file."
+    required: false
+    default: "terraform.tfvars"
 
   infracost-api-key:
-    description: 'Infracost API key'
+    description: "Infracost API key."
     required: true
 
-  max-cost:
-    description: "Optional cost threshold. Fail if total monthly cost exceeds this amount (e.g., 100.00)"
+  gist-id:
+    description: "Gist ID containing the Infracost configuration (e.g., max cost)."
+    required: true
+
+  gist-filename:
+    description: "Filename of the Gist containing the Infracost configuration (e.g., 'infracost-config.json')."
+    required: true
+    default: "infracost-config.json"
+
+  environment:
+    description: "GitHub environment name (e.g., 'prod', 'test', 'devl'). Used to match max cost in Gist."
     required: false
-    default: "10.00"
+    default: "devl"
 
 outputs:
   monthly-cost:
     description: "Total monthly cost from Infracost"
     value: ${{ steps.infracost-json.outputs.monthly-cost }}
+  max-cost:
+    description: "Maximum cost threshold from Gist or fallback"
+    value: ${{ steps.download-gist.outputs.max_cost }}
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
-    - name: Checkout repo
+    - name: Set Checkout Ref
+      id: set-ref
+      shell: bash
+      run: |
+        if [[ -n "${{ inputs.release-tag }}" ]]; then
+          echo "ref=${{ inputs.release-tag }}" >> $GITHUB_OUTPUT
+        else
+          echo "ref=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Checkout Repo
       uses: actions/checkout@v4
-
-    - name: Download Terraform plan artifact
-      uses: actions/download-artifact@v4
       with:
-        name: ${{ inputs.artifact-name }}
-        path: plan-artifact
-
-    - name: Setup Infracost
-      uses: infracost/actions/setup@v3
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
 
-    - name: Compute Backend Key from Repository Name
-      id: key
+    - name: Generate Terraform State Key
+      id: generate-tfstate-key
       shell: bash
+      working-directory: ${{ github.workspace }}/${{ inputs.terraform-dir }}
       run: |
         if [[ "${{ inputs.ci-pipeline }}" == "true" ]]; then
           state_key="${{ github.repository }}/${{ github.sha }}/terraform.tfstate"
@@ -77,26 +103,73 @@ runs:
         fi
         echo "s3_key=$state_key" >> $GITHUB_OUTPUT
 
-    - name: Terraform Init with S3 Backend
+    - name: Initialize Terraform with S3 Backend
       shell: bash
       working-directory: ${{ github.workspace }}/${{ inputs.terraform-dir }}
       run: |
         terraform init -input=false \
           -backend-config="bucket=${{ inputs.s3-bucket }}" \
-          -backend-config="key=${{ steps.key.outputs.s3_key }}" \
+          -backend-config="key=${{ steps.generate-tfstate-key.outputs.s3_key }}" \
           -backend-config="region=${{ inputs.s3-region }}" \
           -backend-config="encrypt=true" \
-          -backend-config="dynamodb_table=${{ inputs.dynamodb-table }}"
+          -backend-config="use_lockfile=true"
+
+    - name: Download Plan Output as Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.tf-plan-name }}
+        path: ${{ github.workspace }}/${{ inputs.terraform-dir }}
 
     - name: Convert Terraform plan to JSON
       shell: bash
       working-directory: ${{ github.workspace }}/${{ inputs.terraform-dir }}
       run: |
-        cp ../plan-artifact/${{ inputs.terraform-plan-file }} tfplan.out
-        terraform show -json tfplan.out > plan.json
-        echo "----------- Terraform plan converted to JSON -----------"
-        cat plan.json | jq
-        echo "---------------------------------------------------------"
+        terraform show -json ${{ inputs.tf-plan-file }}.out > ${{ inputs.tf-plan-file }}.json
+
+    - name: Upload Terraform Plan JSON as Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.tf-plan-name }}-json
+        path: ${{ github.workspace }}/${{ inputs.terraform-dir }}/${{ inputs.tf-plan-file }}.json
+
+    - name: Setup Infracost
+      uses: infracost/actions/setup@v2
+
+    - name: Download Gist JSON file to get the Infracost configuration (max cost, etc.)
+      id: download-gist
+      shell: bash
+      working-directory: ${{ github.workspace }}/${{ inputs.terraform-dir }}
+      run: |
+        GIST_ID="${{ inputs.gist-id }}"
+        FILENAME="${{ inputs.gist-filename }}"
+        USERNAME="${{ github.actor }}"
+        ENVIRONMENT="$(echo "${{ inputs.environment }}" | tr '[:upper:]' '[:lower:]')"
+        REPO_NAME="$(echo "${{ github.repository }}" | cut -d'/' -f2)"
+
+        GIST_URL="https://gist.githubusercontent.com/$USERNAME/$GIST_ID/raw/$FILENAME"
+        echo "Fetching Gist from: $GIST_URL"
+        curl -sSL "$GIST_URL" -o gist.json
+        echo "Downloaded Gist JSON:"
+        cat gist.json
+
+        echo "Environment: $ENVIRONMENT"
+        echo "Repository: $REPO_NAME"
+
+        MAX_COST=$(jq -r --arg repo "$REPO_NAME" --arg env "$ENVIRONMENT" '.[$repo][$env].max_cost' gist.json)
+
+        if [[ -z "$MAX_COST" || "$MAX_COST" == "null" ]]; then
+          echo "⚠️ max_cost not found for $REPO_NAME in $ENVIRONMENT. Using fallback value 9.99"
+          MAX_COST="9.99"
+        fi
+
+        echo "✅ max_cost resolved: $MAX_COST"
+        echo "max_cost=$MAX_COST" >> "$GITHUB_OUTPUT"
+
+        echo "### 💰 Infracost Defined Max Cost" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        echo "max_cost=$MAX_COST ($ENVIRONMENT)" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
 
     - name: Run Infracost (JSON)
       id: infracost-json
@@ -105,8 +178,13 @@ runs:
       env:
         INFRACOST_API_KEY: ${{ inputs.infracost-api-key }}
       run: |
+        command -v bc >/dev/null 2>&1 || { echo >&2 "❌ 'bc' is required but not installed."; exit 1; }
+
+        MAX_COST="${{ steps.download-gist.outputs.max_cost }}"
+        echo "Using max_cost: $MAX_COST"
+
         infracost breakdown \
-          --path=plan.json \
+          --path=${{ inputs.tf-plan-file }}.json \
           --format=json \
           --log-level=info \
           --out-file=cost-report.json
@@ -114,8 +192,10 @@ runs:
         monthly_cost=$(jq -r '.summary.totalMonthlyCost // "0"' cost-report.json)
         printf "monthly-cost=%.2f\n" "$monthly_cost" >> $GITHUB_OUTPUT
 
-        if [[ -n "${{ inputs.max-cost }}" ]]; then
-          max=$(echo "${{ inputs.max-cost }}" | awk '{ printf "%.2f", $1 }')
+        echo "Monthly cost from Infracost: $monthly_cost"
+
+        if [[ -n "$MAX_COST" ]]; then
+          max=$(echo "$MAX_COST" | awk '{ printf "%.2f", $1 }')
           if (( $(echo "$monthly_cost > $max" | bc -l) )); then
             echo "❌ Monthly cost ($monthly_cost) exceeds max threshold ($max)"
             exit 1
@@ -123,14 +203,13 @@ runs:
         fi
 
     - name: Append Infracost Table Summary
-      id: infracost-table
       shell: bash
       working-directory: ${{ github.workspace }}/${{ inputs.terraform-dir }}
       env:
         INFRACOST_API_KEY: ${{ inputs.infracost-api-key }}
       run: |
         infracost breakdown \
-          --path=plan.json \
+          --path=${{ inputs.tf-plan-file }}.json \
           --format=table \
           --log-level=info > cost-table.txt
 
