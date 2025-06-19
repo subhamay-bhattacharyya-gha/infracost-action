@@ -143,7 +143,7 @@ runs:
         GIST_ID="${{ inputs.gist-id }}"
         FILENAME="${{ inputs.gist-filename }}"
         USERNAME="${{ github.actor }}" 
-        ENVIRONMENT="${{ ${{ github.environment }}"
+        ENVIRONMENT="${{ github.environment }}"
 
         GIST_URL="https://gist.githubusercontent.com/$USERNAME/$GIST_ID/raw/$FILENAME"
         echo "Fetching Gist from: $GIST_URL"
