@@ -161,8 +161,7 @@ runs:
         echo "Environment: $ENVIRONMENT"
         echo "Repository: $REPO_NAME"
 
-        MAX_COST=$(jq -r --arg repo "$REPO_NAME" --arg env "$ENVIRONMENT" \
-          '.[] | select(.repository == $repo and .environment == $env) | .max_cost' gist.json)
+        MAX_COST=$(jq -r --arg repo "$REPO_NAME" --arg env "$ENVIRONMENT" '.[$repo][$env].max_cost' gist.json)
 
         if [[ -z "$MAX_COST" || "$MAX_COST" == "null" ]]; then
           echo "⚠️ max_cost not found for $REPO_NAME in $ENVIRONMENT. Using fallback value 9.99"
