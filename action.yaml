@@ -59,9 +59,9 @@ inputs:
     default: "infracost-config.json"
 
   environment:
-    description: "GitHub environment name (e.g., 'prod', 'test' or 'devl'). Used for Gist URL construction."
+    description: "GitHub environment name (e.g., 'prod', 'test', 'devl'). Used to match max cost in Gist."
     required: false
-    default: "${{ github.environment }}"
+    default: "devl"
 
   max-cost:
     description: "Optional cost threshold. Fails if total monthly cost exceeds this amount (e.g., 100.00)."
@@ -72,6 +72,9 @@ outputs:
   monthly-cost:
     description: "Total monthly cost from Infracost"
     value: ${{ steps.infracost-json.outputs.monthly-cost }}
+  max-cost:
+    description: "The max cost retrieved from the Gist (or fallback value)"
+    value: ${{ steps.download-gist.outputs.max_cost }}
 
 runs:
   using: "composite"
@@ -87,13 +90,11 @@ runs:
         fi
 
     - name: Checkout Repo
-      id: checkout
       uses: actions/checkout@v4
       with:
         ref: ${{ steps.set-ref.outputs.ref }}
 
     - name: Setup Terraform
-      id: setup-terraform
       uses: hashicorp/setup-terraform@v3
 
     - name: Generate Terraform State Key
@@ -109,7 +110,6 @@ runs:
         echo "s3_key=$state_key" >> $GITHUB_OUTPUT
 
     - name: Initialize Terraform with S3 Backend
-      id: terraform-init-s3
       shell: bash
       working-directory: ${{ github.workspace }}/${{ inputs.terraform-dir }}
       run: |
@@ -121,21 +121,22 @@ runs:
           -backend-config="use_lockfile=true"
 
     - name: Download Plan Output as Artifact
-      id: download-plan-artifact
       uses: actions/download-artifact@v4
       with:
         name: ${{ inputs.tf-plan-name }}
         path: ${{ github.workspace }}/${{ inputs.terraform-dir }}
 
     - name: Convert Terraform plan to JSON
-      id: convert-tfplan-json
       shell: bash
       working-directory: ${{ github.workspace }}/${{ inputs.terraform-dir }}
       run: |
         terraform show -json ${{ inputs.tf-plan-file }}.out > ${{ inputs.tf-plan-file }}.json
-        echo "----------- Terraform plan converted to JSON -----------"
-        cat ${{ inputs.tf-plan-file }}.json | jq
-        echo "---------------------------------------------------------"
+
+    - name: Upload Terraform Plan JSON as Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.tf-plan-name }}-json
+        path: ${{ github.workspace }}/${{ inputs.terraform-dir }}/${{ inputs.tf-plan-file }}.json
 
     - name: Setup Infracost
       uses: infracost/actions/setup@v2
@@ -147,16 +148,29 @@ runs:
       run: |
         GIST_ID="${{ inputs.gist-id }}"
         FILENAME="${{ inputs.gist-filename }}"
-        USERNAME="${{ github.actor }}" 
+        USERNAME="${{ github.actor }}"
         ENVIRONMENT="${{ inputs.environment }}"
+        REPO_NAME="${{ github.repository }}"
 
         GIST_URL="https://gist.githubusercontent.com/$USERNAME/$GIST_ID/raw/$FILENAME"
         echo "Fetching Gist from: $GIST_URL"
-        
         curl -sSL "$GIST_URL" -o gist.json
+        echo "Downloaded Gist JSON:"
         cat gist.json
-        echo "-------------------------"
+
         echo "Environment: $ENVIRONMENT"
+        echo "Repository: $REPO_NAME"
+
+        MAX_COST=$(jq -r --arg repo "$REPO_NAME" --arg env "$ENVIRONMENT" \
+          '.[] | select(.repository == $repo and .environment == $env) | .max_cost' gist.json)
+
+        if [[ -z "$MAX_COST" || "$MAX_COST" == "null" ]]; then
+          echo "⚠️ max_cost not found for $REPO_NAME in $ENVIRONMENT. Using fallback value 9.99"
+          MAX_COST="9.99"
+        fi
+
+        echo "✅ max_cost resolved: $MAX_COST"
+        echo "max_cost=$MAX_COST" >> "$GITHUB_OUTPUT"
 
     - name: Run Infracost (JSON)
       id: infracost-json
@@ -165,6 +179,9 @@ runs:
       env:
         INFRACOST_API_KEY: ${{ inputs.infracost-api-key }}
       run: |
+        MAX_COST="${{ steps.download-gist.outputs.max_cost }}"
+        echo "Using max_cost: $MAX_COST"
+
         infracost breakdown \
           --path=${{ inputs.tf-plan-file }}.json \
           --format=json \
@@ -174,8 +191,10 @@ runs:
         monthly_cost=$(jq -r '.summary.totalMonthlyCost // "0"' cost-report.json)
         printf "monthly-cost=%.2f\n" "$monthly_cost" >> $GITHUB_OUTPUT
 
-        if [[ -n "${{ inputs.max-cost }}" ]]; then
-          max=$(echo "${{ inputs.max-cost }}" | awk '{ printf "%.2f", $1 }')
+        echo "Monthly cost from Infracost: $monthly_cost"
+
+        if [[ -n "$MAX_COST" ]]; then
+          max=$(echo "$MAX_COST" | awk '{ printf "%.2f", $1 }')
           if (( $(echo "$monthly_cost > $max" | bc -l) )); then
             echo "❌ Monthly cost ($monthly_cost) exceeds max threshold ($max)"
             exit 1
@@ -183,7 +202,6 @@ runs:
         fi
 
     - name: Append Infracost Table Summary
-      id: infracost-table
       shell: bash
       working-directory: ${{ github.workspace }}/${{ inputs.terraform-dir }}
       env:
