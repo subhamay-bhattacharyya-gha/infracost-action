@@ -143,12 +143,15 @@ runs:
         GIST_ID="${{ inputs.gist-id }}"
         FILENAME="${{ inputs.gist-filename }}"
         USERNAME="${{ github.actor }}" 
+        ENVIRONMENT="${{ ${{ github.environment }}"
 
         GIST_URL="https://gist.githubusercontent.com/$USERNAME/$GIST_ID/raw/$FILENAME"
         echo "Fetching Gist from: $GIST_URL"
         
         curl -sSL "$GIST_URL" -o gist.json
         cat gist.json
+        echo "-------------------------"
+        echo "Environment: $ENVIRONMENT"
 
     - name: Run Infracost (JSON)
       id: infracost-json
