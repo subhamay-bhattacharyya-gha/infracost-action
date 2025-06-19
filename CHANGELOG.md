@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/subhamay-bhattacharyya-gha/infracost-action/compare/v1.0.1...v1.0.2) (2025-06-19)
+
+
+### Bug Fixes
+
+* update checkout step to use dynamic ref output ([181d326](https://github.com/subhamay-bhattacharyya-gha/infracost-action/commit/181d3262edd1869bd5445d929ecc66fd2cd84e87))
+
 ## [1.0.1](https://github.com/subhamay-bhattacharyya-gha/infracost-action/compare/v1.0.0...v1.0.1) (2025-06-19)
 
 
