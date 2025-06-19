@@ -58,6 +58,11 @@ inputs:
     required: true
     default: "infracost-config.json"
 
+  environment:
+    description: "GitHub environment name (e.g., 'prod', 'test' or 'devl'). Used for Gist URL construction."
+    required: false
+    default: "${{ github.environment }}"
+
   max-cost:
     description: "Optional cost threshold. Fails if total monthly cost exceeds this amount (e.g., 100.00)."
     required: false
@@ -143,7 +148,7 @@ runs:
         GIST_ID="${{ inputs.gist-id }}"
         FILENAME="${{ inputs.gist-filename }}"
         USERNAME="${{ github.actor }}" 
-        ENVIRONMENT="${{ github.environment }}"
+        ENVIRONMENT="${{ inputs.environment }}"
 
         GIST_URL="https://gist.githubusercontent.com/$USERNAME/$GIST_ID/raw/$FILENAME"
         echo "Fetching Gist from: $GIST_URL"
