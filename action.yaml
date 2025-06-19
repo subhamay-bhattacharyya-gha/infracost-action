@@ -123,6 +123,9 @@ runs:
         cat ${{ inputs.tf-plan-file }}.json | jq
         echo "---------------------------------------------------------"
 
+    - name: Setup Infracost
+      uses: infracost/actions/setup@v2
+
     - name: Run Infracost (JSON)
       id: infracost-json
       shell: bash
