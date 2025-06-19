@@ -49,6 +49,15 @@ inputs:
     description: "Infracost API key."
     required: true
 
+  gist-id:
+    description: "Gist ID containing the Infracost configuration (e.g., max cost)."
+    required: true
+
+  gist-filename:
+    description: "Filename of the Gist containing the Infracost configuration (e.g., 'infracost-config.json')."
+    required: true
+    default: "infracost-config.json"
+
   max-cost:
     description: "Optional cost threshold. Fails if total monthly cost exceeds this amount (e.g., 100.00)."
     required: false
@@ -125,6 +134,19 @@ runs:
 
     - name: Setup Infracost
       uses: infracost/actions/setup@v2
+
+    - name: Download Gist JSON file to get the Infracost configuration (max cost, etc.)
+      id: download-gist
+      run: |
+        GIST_ID="${{ inputs.gist-id }}"
+        FILENAME="${{ inputs.gist-filename }}"
+        USERNAME="${{ github.actor }}" 
+
+        GIST_URL="https://gist.githubusercontent.com/$USERNAME/$GIST_ID/raw/$FILENAME"
+        echo "Fetching Gist from: $GIST_URL"
+        
+        curl -sSL "$GIST_URL" -o gist.json
+        cat gist.json
 
     - name: Run Infracost (JSON)
       id: infracost-json
