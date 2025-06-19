@@ -31,11 +31,6 @@ inputs:
     type: string
 
   tf-plan-name:
-    description: "Name of the Terraform plan file"
-    required: false
-    default: "terraform-plan"
-
-  tf-plan-name:
     description: "Name of the Terraform plan artifact."
     required: false
     default: "terraform-plan"
