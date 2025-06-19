@@ -171,10 +171,10 @@ runs:
         echo "✅ max_cost resolved: $MAX_COST"
         echo "max_cost=$MAX_COST" >> "$GITHUB_OUTPUT"
 
-        echo "### 💰 Infracost Defined Maxcost ( `${{ inputs.environment }}` )" >> $GITHUB_STEP_SUMMARY
+        echo "### 💰 Infracost Defined Maxcost " >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
-        echo "max_cost=$MAX_COST" >> $GITHUB_STEP_SUMMARY
+        echo "max_cost=$MAX_COST ($ENVIRONMENT)" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
 
     - name: Run Infracost (JSON)
