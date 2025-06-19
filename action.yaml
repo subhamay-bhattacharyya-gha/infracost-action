@@ -150,7 +150,7 @@ runs:
         FILENAME="${{ inputs.gist-filename }}"
         USERNAME="${{ github.actor }}"
         ENVIRONMENT="${{ inputs.environment }}"
-        REPO_NAME="`echo ${{ github.repository }}|cut -d'/' -f2`"
+        REPO_NAME="`echo ${{ github.repository }}`|cut -d'/' -f2"
 
         GIST_URL="https://gist.githubusercontent.com/$USERNAME/$GIST_ID/raw/$FILENAME"
         echo "Fetching Gist from: $GIST_URL"
