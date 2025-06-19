@@ -63,17 +63,12 @@ inputs:
     required: false
     default: "devl"
 
-  max-cost:
-    description: "Optional cost threshold. Fails if total monthly cost exceeds this amount (e.g., 100.00)."
-    required: false
-    default: "10.00"
-
 outputs:
   monthly-cost:
     description: "Total monthly cost from Infracost"
     value: ${{ steps.infracost-json.outputs.monthly-cost }}
   max-cost:
-    description: "The max cost retrieved from the Gist (or fallback value)"
+    description: "Maximum cost threshold from Gist or fallback"
     value: ${{ steps.download-gist.outputs.max_cost }}
 
 runs:
@@ -149,7 +144,7 @@ runs:
         GIST_ID="${{ inputs.gist-id }}"
         FILENAME="${{ inputs.gist-filename }}"
         USERNAME="${{ github.actor }}"
-        ENVIRONMENT="${{ inputs.environment }}"
+        ENVIRONMENT="$(echo "${{ inputs.environment }}" | tr '[:upper:]' '[:lower:]')"
         REPO_NAME="$(echo "${{ github.repository }}" | cut -d'/' -f2)"
 
         GIST_URL="https://gist.githubusercontent.com/$USERNAME/$GIST_ID/raw/$FILENAME"
@@ -171,7 +166,7 @@ runs:
         echo "✅ max_cost resolved: $MAX_COST"
         echo "max_cost=$MAX_COST" >> "$GITHUB_OUTPUT"
 
-        echo "### 💰 Infracost Defined Maxcost " >> $GITHUB_STEP_SUMMARY
+        echo "### 💰 Infracost Defined Max Cost" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
         echo "max_cost=$MAX_COST ($ENVIRONMENT)" >> $GITHUB_STEP_SUMMARY
@@ -184,6 +179,8 @@ runs:
       env:
         INFRACOST_API_KEY: ${{ inputs.infracost-api-key }}
       run: |
+        command -v bc >/dev/null 2>&1 || { echo >&2 "❌ 'bc' is required but not installed."; exit 1; }
+
         MAX_COST="${{ steps.download-gist.outputs.max_cost }}"
         echo "Using max_cost: $MAX_COST"
 
