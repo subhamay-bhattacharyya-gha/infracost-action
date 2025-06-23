@@ -135,7 +135,7 @@ runs:
         path: ${{ github.workspace }}/${{ inputs.terraform-dir }}/${{ inputs.tf-plan-file }}.json
 
     - name: Setup Infracost
-      uses: infracost/actions/setup@v2
+      uses: infracost/actions/setup@v3
 
     - name: Download Gist JSON file to get the Infracost configuration (max cost, etc.)
       id: download-gist
