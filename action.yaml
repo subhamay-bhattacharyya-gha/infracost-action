@@ -173,6 +173,13 @@ runs:
         echo "max_cost=$MAX_COST ($ENVIRONMENT)" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
 
+    - name: Install bc
+      id: install-bc
+      shell: bash
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update && sudo apt-get install -y bc
+
     - name: Run Infracost (JSON)
       id: infracost-json
       shell: bash
