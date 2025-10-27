@@ -129,7 +129,7 @@ runs:
         terraform show -json ${{ inputs.tf-plan-file }}.out > ${{ inputs.tf-plan-file }}.json
 
     - name: Upload Terraform Plan JSON as Artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: ${{ inputs.tf-plan-name }}-json
         path: ${{ github.workspace }}/${{ inputs.terraform-dir }}/${{ inputs.tf-plan-file }}.json
